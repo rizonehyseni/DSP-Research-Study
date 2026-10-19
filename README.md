@@ -1,26 +1,32 @@
 # dsp-jailbreak-study
 
-_One-paragraph summary of the study goes here._
+Research project, Group 9.
 
-## Repository layout
+Voice AI models can be tricked by hidden, nearly inaudible noise in audio (adversarial jailbreaks). We test whether simple DSP filters, such as MP3 compression, low-pass filtering and resampling, can remove these attacks without hurting the model's understanding of normal speech.
+
+## Research question
+
+Which DSP transformation best blocks adversarial audio jailbreaks on audio-language models while keeping performance on normal speech?
+
+## Method
+
+1. Run attack audio and normal speech through the model with no filter (baseline).
+2. Apply each DSP filter at several strengths.
+3. Run the filtered audio through the model again.
+4. Compare attack success rate and accuracy against the baseline.
+
+## Structure
 
 ```
-dsp-jailbreak-study/
-├── data/        # clip lists (audio files stay in Drive)
-├── src/         # code: filters, model, evaluation
-├── notebooks/   # Colab experiments
-├── results/     # results as CSV
-├── figures/     # plots for the paper
-├── docs/        # notes, decisions, experiment log
-└── paper/       # the paper
+data/        clip lists (audio stored in Google Drive)
+src/         filters, model, evaluation code
+notebooks/   Colab experiments
+results/     results as CSV
+figures/     plots
+docs/        notes and experiment log
+paper/       the paper
 ```
 
-## Data
+## Tools
 
-Audio files are **not** stored in this repository. They live in Google Drive;
-`data/` only holds the clip lists that reference them. The `.gitignore` blocks
-common audio formats so they can't be committed by accident.
-
-## License
-
-See [LICENSE](LICENSE).
+Python, an open-source audio-language model, Google Colab, a public jailbreak benchmark and LibriSpeech.
