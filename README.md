@@ -28,4 +28,4 @@ paper/       the paper
 
 ## Tools
 
-Python, an open-source audio-language model, Google Colab, a public jailbreak benchmark and LibriSpeech.
+Python, Matlab an open-source audio-language model, a public jailbreak benchmark and LibriSpeech.
