@@ -16,9 +16,6 @@ env/
 *.egg-info/
 .pytest_cache/
 
-# Jupyter / Colab
-.ipynb_checkpoints/
-
 # LaTeX build output
 *.aux
 *.bbl

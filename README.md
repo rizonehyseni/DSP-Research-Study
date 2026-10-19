@@ -19,7 +19,7 @@ Which DSP transformation best blocks adversarial audio jailbreaks on audio-langu
 ```
 data/        clip lists (audio stored in Google Drive)
 src/         filters, model, evaluation code
-notebooks/   Colab experiments
+scripts/     experiment scripts
 results/     results as CSV
 figures/     plots
 docs/        notes and experiment log
