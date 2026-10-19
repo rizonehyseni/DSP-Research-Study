@@ -1,6 +1,5 @@
-# dsp-jailbreak-study
+## Is Signal-Level Defense Enough? A Comparative Evaluation of DSP Transformations Against Audio Jailbreaks on Audio-Language Models
 
-Research project, Group 9.
 
 Voice AI models can be tricked by hidden, nearly inaudible noise in audio (adversarial jailbreaks). We test whether simple DSP filters, such as MP3 compression, low-pass filtering and resampling, can remove these attacks without hurting the model's understanding of normal speech.
 
