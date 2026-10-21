@@ -7,7 +7,7 @@ Checks that:
   4. Qwen2-Audio loads (4-bit) and answers a few clips without any filter.
 
 Run in Colab (after mounting Drive and setting the HF_TOKEN secret):
-    !python scripts/check_setup.py --jalmbench <HF dataset id from the JALMBench page>
+    !python scripts/check_setup.py
 """
 
 import argparse
@@ -23,24 +23,42 @@ from datasets import Audio, get_dataset_config_names, load_dataset
 
 SR = 16000  # Qwen2-Audio expects 16 kHz mono
 MODEL_ID = "Qwen/Qwen2-Audio-7B-Instruct"
-ATTACKS = ["SSJ", "AMSE", "BoN", "AdvWave", "A_Harm"]
-DEFAULT_DRIVE = "/content/drive/MyDrive/dsp-jailbreak-study"
+ATTACKS = ["SSJ", "AMSE", "BoN", "AdvWave", "AHarm"]
+JALMBENCH_ID = "AnonymousUser000/JALMBench"
+DEFAULT_DRIVE = "/content/drive/MyDrive/dsp-research-study"
 
 
 def decode(audio_field):
-    """Turn a raw (decode=False) audio field into a 16 kHz mono float array."""
-    data = audio_field.get("bytes")
-    if data is None:
-        data = open(audio_field["path"], "rb").read()
-    try:
-        wav, sr = sf.read(io.BytesIO(data), dtype="float32")
-    except Exception:
-        wav, sr = librosa.load(io.BytesIO(data), sr=None, mono=False)
+    """Turn an audio field into a 16 kHz mono float array.
+
+    Handles raw files (bytes/path), already decoded dicts (array) and plain lists.
+    """
+    sr = SR
+    if isinstance(audio_field, dict) and "array" in audio_field:
+        wav, sr = np.asarray(audio_field["array"], dtype=np.float32), audio_field["sampling_rate"]
+    elif isinstance(audio_field, dict):
+        data = audio_field.get("bytes")
+        if data is None:
+            data = open(audio_field["path"], "rb").read()
+        try:
+            wav, sr = sf.read(io.BytesIO(data), dtype="float32")
+        except Exception:
+            wav, sr = librosa.load(io.BytesIO(data), sr=None, mono=False)
+    else:
+        print("  Note: audio is a plain array, assuming 16 kHz")
+        wav = np.asarray(audio_field, dtype=np.float32)
     if wav.ndim > 1:
         wav = wav.mean(axis=1) if wav.shape[1] < wav.shape[0] else wav.mean(axis=0)
     if sr != SR:
         wav = librosa.resample(wav, orig_sr=sr, target_sr=SR)
     return wav.astype(np.float32)
+
+
+def raw_audio(ds):
+    """Skip automatic decoding when the column is an Audio feature."""
+    if ds.features and isinstance(ds.features.get("audio"), Audio):
+        return ds.cast_column("audio", Audio(decode=False))
+    return ds
 
 
 def take(ds, n, source=None):
@@ -63,12 +81,12 @@ def load_jalmbench(dataset_id, n, max_scan):
     for attack in ATTACKS:
         if attack.lower() in by_name:
             ds = load_dataset(dataset_id, by_name[attack.lower()], split="train", streaming=True)
-            rows = take(ds.cast_column("audio", Audio(decode=False)), n)
+            rows = take(raw_audio(ds), n)
         else:
             ds = load_dataset(dataset_id, split="train", streaming=True)
-            ds = ds.cast_column("audio", Audio(decode=False)).take(max_scan)
+            ds = raw_audio(ds).take(max_scan)
             rows = take(ds, n, source=attack)
-        print(f"  {attack}: {len(rows)} clips")
+        print(f"  {attack}: {len(rows)} clips" + (f", fields: {list(rows[0].keys())}" if rows else ""))
         for i, row in enumerate(rows):
             clips.append({"clip_id": f"{attack}_{i}", "source": attack,
                           "text": row.get("text", ""), "audio": decode(row["audio"])})
@@ -77,7 +95,7 @@ def load_jalmbench(dataset_id, n, max_scan):
 
 def load_librispeech(n):
     ds = load_dataset("openslr/librispeech_asr", "clean", split="test", streaming=True)
-    rows = take(ds.cast_column("audio", Audio(decode=False)), n)
+    rows = take(raw_audio(ds), n)
     print(f"  LibriSpeech: {len(rows)} clips")
     return [{"clip_id": f"librispeech_{i}", "source": "LibriSpeech",
              "text": row["text"], "audio": decode(row["audio"])} for i, row in enumerate(rows)]
@@ -115,7 +133,7 @@ def ask(processor, model, audio, prompt, max_new_tokens=256):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--jalmbench", required=True, help="Hugging Face dataset id of JALMBench")
+    parser.add_argument("--jalmbench", default=JALMBENCH_ID, help="Hugging Face dataset id of JALMBench")
     parser.add_argument("--drive", default=DEFAULT_DRIVE, help="shared Drive folder")
     parser.add_argument("--n", type=int, default=1, help="clips per attack")
     parser.add_argument("--max-scan", type=int, default=5000, help="rows to scan when filtering by source")
