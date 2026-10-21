@@ -19,7 +19,9 @@ import librosa
 import numpy as np
 import soundfile as sf
 import torch
+import pyarrow.parquet as pq
 from datasets import Audio, get_dataset_config_names, load_dataset
+from huggingface_hub import hf_hub_download, list_repo_files
 
 SR = 16000  # Qwen2-Audio expects 16 kHz mono
 MODEL_ID = "Qwen/Qwen2-Audio-7B-Instruct"
@@ -73,6 +75,21 @@ def take(ds, n, source=None):
     return rows
 
 
+def take_from_parquet(dataset_id, attack, n):
+    """Fallback: read the subset's parquet shards directly (used for BoN and AdvWave,
+    whose configs stream as empty)."""
+    shards = sorted(f for f in list_repo_files(dataset_id, repo_type="dataset")
+                    if f"/{attack}/" in f and f.endswith(".parquet"))
+    rows = []
+    for shard in shards:
+        path = hf_hub_download(dataset_id, shard, repo_type="dataset")
+        for row in pq.read_table(path).to_pylist():
+            rows.append(row)
+            if len(rows) == n:
+                return rows
+    return rows
+
+
 def load_jalmbench(dataset_id, n, max_scan):
     configs = get_dataset_config_names(dataset_id)
     print(f"  JALMBench configs: {configs}")
@@ -86,6 +103,8 @@ def load_jalmbench(dataset_id, n, max_scan):
             ds = load_dataset(dataset_id, split="train", streaming=True)
             ds = raw_audio(ds).take(max_scan)
             rows = take(ds, n, source=attack)
+        if not rows:
+            rows = take_from_parquet(dataset_id, attack, n)
         print(f"  {attack}: {len(rows)} clips" + (f", fields: {list(rows[0].keys())}" if rows else ""))
         for i, row in enumerate(rows):
             clips.append({"clip_id": f"{attack}_{i}", "source": attack,
