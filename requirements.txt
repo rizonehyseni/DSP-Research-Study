@@ -1,0 +1,10 @@
+torch
+transformers>=4.45
+accelerate
+bitsandbytes
+datasets
+soundfile
+librosa
+jiwer
+pandas
+matplotlib
