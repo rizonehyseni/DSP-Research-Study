@@ -8,3 +8,5 @@ librosa
 jiwer
 pandas
 matplotlib
+pyarrow
+huggingface_hub
