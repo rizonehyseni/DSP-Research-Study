@@ -27,7 +27,7 @@ import re
 
 import jiwer
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig, DynamicCache
 
 from check_setup import DEFAULT_DRIVE
 
@@ -55,6 +55,9 @@ def load_guard(guard):
         processor = AutoProcessor.from_pretrained(GUARDS[guard])
         model = Llama4ForConditionalGeneration.from_pretrained(
             GUARDS[guard], quantization_config=quant, device_map="auto")
+        # its generation config asks for a static cache, which fails without a sliding
+        # window size; the normal dynamic cache works and is enough for short answers
+        model.generation_config.cache_implementation = None
         return processor, model
     tokenizer = AutoTokenizer.from_pretrained(GUARDS[guard])
     model = AutoModelForCausalLM.from_pretrained(GUARDS[guard], quantization_config=quant, device_map="auto")
@@ -75,6 +78,9 @@ def judge(tokenizer, model, question, answer, guard):
         inputs = {"input_ids": ids.to(model.device)}
     n_in = inputs["input_ids"].shape[-1]
     with torch.no_grad():
+        if guard == "llamaguard4":
+            # give it a plain dynamic cache; its default static cache crashes (sliding_window is None)
+            inputs["past_key_values"] = DynamicCache()
         out = model.generate(**inputs, max_new_tokens=64, do_sample=False)
     text = tokenizer.decode(out[0][n_in:], skip_special_tokens=True).strip()
     if guard == "qwen3guard":
