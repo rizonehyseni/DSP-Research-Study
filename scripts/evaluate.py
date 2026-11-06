@@ -48,13 +48,15 @@ def read_csv(path):
 
 
 def load_guard(guard):
+    # device_map {"": 0} puts the whole judge on the GPU: if it does not fit we get a clear
+    # out-of-memory error instead of a silent, very slow run on the CPU
     quant = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_compute_dtype=torch.float16)
     if guard == "llamaguard4":
         # Llama Guard 4 is a Llama 4 model: it loads with a processor, not a plain tokenizer
         from transformers import AutoProcessor, Llama4ForConditionalGeneration
         processor = AutoProcessor.from_pretrained(GUARDS[guard])
         model = Llama4ForConditionalGeneration.from_pretrained(
-            GUARDS[guard], quantization_config=quant, device_map="auto")
+            GUARDS[guard], quantization_config=quant, device_map={"": 0})
         # its generation config asks for a static cache, which fails without a sliding
         # window size; the normal dynamic cache works and is enough for short answers
         model.generation_config.cache_implementation = None
@@ -65,7 +67,7 @@ def load_guard(guard):
             text_cfg.attention_chunk_size = 8192
         return processor, model
     tokenizer = AutoTokenizer.from_pretrained(GUARDS[guard])
-    model = AutoModelForCausalLM.from_pretrained(GUARDS[guard], quantization_config=quant, device_map="auto")
+    model = AutoModelForCausalLM.from_pretrained(GUARDS[guard], quantization_config=quant, device_map={"": 0})
     return tokenizer, model
 
 
@@ -138,6 +140,8 @@ def main():
         if todo and not args.wer_only:
             if model is None:
                 tokenizer, model = load_guard(args.judge)
+                print(f"Judge {GUARDS[args.judge]} loaded on {model.device}, "
+                      f"GPU memory {torch.cuda.memory_allocated() / 1e9:.1f} GB")
             new_file = not os.path.exists(judged_path)
             with open(judged_path, "a", newline="", encoding="utf-8") as f:
                 writer = csv.DictWriter(f, fieldnames=JUDGED_FIELDS)
