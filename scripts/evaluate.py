@@ -58,6 +58,11 @@ def load_guard(guard):
         # its generation config asks for a static cache, which fails without a sliding
         # window size; the normal dynamic cache works and is enough for short answers
         model.generation_config.cache_implementation = None
+        # its config leaves attention_chunk_size empty, which newer transformers reject;
+        # a chunk longer than any of our prompts makes it plain causal attention
+        text_cfg = model.config.get_text_config()
+        if getattr(text_cfg, "attention_chunk_size", None) is None:
+            text_cfg.attention_chunk_size = 8192
         return processor, model
     tokenizer = AutoTokenizer.from_pretrained(GUARDS[guard])
     model = AutoModelForCausalLM.from_pretrained(GUARDS[guard], quantization_config=quant, device_map="auto")
